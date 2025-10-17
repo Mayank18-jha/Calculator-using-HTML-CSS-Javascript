@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Calculator</title>
+  <style>
+    :root{
+      --bg:#0f1724; /* deep navy */
+      --panel:#0b1220;
+      --accent:#7c5cff; /* purple */
+      --muted:#9aa7bf;
+      --glass: rgba(255,255,255,0.04);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      background: radial-gradient(1000px 600px at 10% 10%, rgba(124,92,255,0.08), transparent),
+                  linear-gradient(180deg, #071025 0%, var(--bg) 100%);
+      color: #e6eef8;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+    }
+
+    .calc {
+      width:360px;
+      max-width:96vw;
+      border-radius:18px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      box-shadow: 0 10px 30px rgba(2,6,23,0.6), inset 0 1px 0 rgba(255,255,255,0.02);
+      padding:18px;
+    }
+
+    .display {
+      background: var(--panel);
+      border-radius:12px;
+      padding:18px;
+      min-height:78px;
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      gap:6px;
+      margin-bottom:14px;
+      box-shadow: inset 0 -10px 30px rgba(0,0,0,0.6);
+    }
+
+    .expr {
+      font-size:14px;
+      color:var(--muted);
+      text-align:right;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .result{
+      font-size:28px;
+      font-weight:600;
+      text-align:right;
+    }
+
+    .keys{
+      display:grid;
+      grid-template-columns: repeat(4,1fr);
+      gap:10px;
+    }
+
+    button.key{
+      border:0;
+      border-radius:10px;
+      padding:18px 10px;
+      font-size:18px;
+      background:var(--glass);
+      color:inherit;
+      cursor:pointer;
+      transition:transform .06s ease, box-shadow .06s ease, background .12s;
+      box-shadow: 0 6px 18px rgba(2,6,23,0.5);
+    }
+    button.key:active{transform:translateY(2px)}
+
+    button.op{background:linear-gradient(180deg, rgba(124,92,255,0.16), rgba(124,92,255,0.1));}
+    button.equal{grid-column: span 2; background: linear-gradient(180deg,var(--accent), #5f44e0); font-weight:700}
+    button.clear{background: rgba(255,255,255,0.03); color: #ffb4b4}
+
+    .small{font-size:14px;padding:10px}
+
+    /* responsive */
+    @media (max-width:420px){
+      .result{font-size:24px}
+      button.key{padding:14px;font-size:16px}
+    }
+  </style>
+</head>
+<body>
+  <main class="calc" role="application" aria-label="Calculator">
+    <section class="display" aria-live="polite">
+      <div class="expr" id="expr">0</div>
+      <div class="result" id="result">0</div>
+    </section>
+
+    <section class="keys">
+      <button class="key clear" data-action="clear">C</button>
+      <button class="key" data-action="back">⌫</button>
+      <button class="key" data-action="percent">%</button>
+      <button class="key op" data-value="/">÷</button>
+
+      <button class="key" data-value="7">7</button>
+      <button class="key" data-value="8">8</button>
+      <button class="key" data-value="9">9</button>
+      <button class="key op" data-value="*">×</button>
+
+      <button class="key" data-value="4">4</button>
+      <button class="key" data-value="5">5</button>
+      <button class="key" data-value="6">6</button>
+      <button class="key op" data-value="-">−</button>
+
+      <button class="key" data-value="1">1</button>
+      <button class="key" data-value="2">2</button>
+      <button class="key" data-value="3">3</button>
+      <button class="key op" data-value="+">+</button>
+
+      <button class="key" data-action="neg">±</button>
+      <button class="key" data-value="0">0</button>
+      <button class="key" data-value=".">.</button>
+      <button class="key equal" data-action="equals">=</button>
+    </section>
+  </main>
+
+  <script>
+    (function(){
+      const exprEl = document.getElementById('expr');
+      const resultEl = document.getElementById('result');
+      let expr = '';
+
+      function refresh(){
+        exprEl.textContent = expr || '0';
+        resultEl.textContent = computePreview(expr) || '0';
+      }
+
+      function append(str){
+        // prevent two operators in a row (except negative)
+        if (/^[+\-*/.%]$/.test(str) && expr === ''){
+          if (str === '-') expr = '-'; // allow starting negative
+          else return;
+        } else {
+          // if last char and new char are operators, replace
+          if (/^[+\-*/.%]$/.test(str) && /[+\-*/.%]$/.test(expr.slice(-1))){
+            expr = expr.slice(0,-1) + str;
+          } else {
+            expr += str;
+          }
+        }
+        refresh();
+      }
+
+      function clearAll(){ expr = ''; refresh(); }
+      function backspace(){ expr = expr.slice(0,-1); refresh(); }
+
+      function computePreview(e){
+        if (!e) return '';
+        try{ const v = evaluate(e); return String(v); }catch(e){ return ''; }
+      }
+
+      function percent(){
+        // convert last number to percentage
+        const m = expr.match(/(\d+(?:\.\d*)?|\.\d+)$/);
+        if (m){
+          const n = parseFloat(m[0]);
+          const start = expr.slice(0, -m[0].length);
+          expr = start + String(n/100);
+          refresh();
+        }
+      }
+
+      function negate(){
+        // toggle sign of last number
+        const m = expr.match(/(\d+(?:\.\d*)?|\.\d+)$/);
+        if (m){
+          const n = m[0];
+          const start = expr.slice(0, -n.length);
+          if (start.endsWith('(-')){ // already in parentheses negative
+            expr = start.slice(0,-2) + n;
+          } else {
+            expr = start + '(-' + n + ')';
+          }
+          refresh();
+        } else if (expr === ''){
+          expr = '-'; refresh();
+        }
+      }
+
+      function equals(){
+        try{
+          const v = evaluate(expr);
+          expr = String(v);
+          refresh();
+        }catch(e){
+          resultEl.textContent = 'Error';
+        }
+      }
+
+      // Evaluate expression safely by validating allowed characters and using Function
+      function evaluate(input){
+        if (!input) return 0;
+        // normalize × ÷ and remove weird spaces
+        const normalized = input.replace(/×/g,'*').replace(/÷/g,'/').replace(/—/g,'-').replace(/\s+/g,'');
+        // Disallow letters or other characters
+        if (!/^[0-9+\-*/().%]+$/.test(normalized)) throw new Error('Invalid characters');
+        // Replace % with /100
+        const handledPercent = normalized.replace(/(\d+(?:\.\d*)?|\.\d+)%/g, '($1/100)');
+        // Replace parentheses with safe ones and evaluate
+        // Use Function instead of eval; still run locally only. Wrap in double parens to return value.
+        const fn = new Function('return ' + handledPercent);
+        const val = fn();
+        if (typeof val === 'number' && !isFinite(val)) throw new Error('Math error');
+        return Math.round((val + Number.EPSILON) * 1e12) / 1e12; // round to avoid float noise
+      }
+
+      // button binding
+      document.querySelectorAll('button.key').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const v = btn.dataset.value;
+          const action = btn.dataset.action;
+          if (action === 'clear') clearAll();
+          else if (action === 'back') backspace();
+          else if (action === 'percent') percent();
+          else if (action === 'neg') negate();
+          else if (action === 'equals') equals();
+          else if (v) append(v);
+        });
+      });
+
+      // keyboard support
+      window.addEventListener('keydown', (e)=>{
+        if (e.key >= '0' && e.key <= '9') append(e.key);
+        else if (e.key === '.') append('.');
+        else if (e.key === 'Enter' || e.key === '='){ e.preventDefault(); equals(); }
+        else if (e.key === 'Backspace') backspace();
+        else if (e.key === 'Escape') clearAll();
+        else if (['+','-','*','/','%','(',')'].includes(e.key)) append(e.key);
+      });
+
+      refresh();
+    })();
+  </script>
+</body>
+</html>
